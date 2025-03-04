@@ -13,6 +13,7 @@ let remoteConnection;
 let sendChannel;
 let receiveChannel;
 let fileReader;
+let file;
 const bitrateDiv = document.querySelector('div#bitrate');
 const fileInput = document.querySelector('input#fileInput');
 const abortButton = document.querySelector('button#abortButton');
@@ -31,7 +32,49 @@ let timestampStart;
 let statsInterval = null;
 let bitrateMax = 0;
 
-sendFileButton.addEventListener('click', () => createConnection());
+const socket = io('http://192.168.1.48:3001', {
+  auth: {
+    serverOffset: 0
+  },
+  ackTimeout: 10000,
+  retries: 3,
+});
+
+socket.on('data message', async (msg) => {
+  console.log(msg)
+  if (msg.eventType == 'icecandidate') {
+    await remoteConnection.addIceCandidate(msg.data);
+  }
+
+  if (msg.eventType == 'description') {
+    await remoteConnection.setRemoteDescription(msg.data);
+    try {
+      const answer = await remoteConnection.createAnswer();
+      await gotRemoteDescription(answer);
+    } catch (e) {
+      console.log('Failed to create session description: ', e);
+    }
+  }
+
+  if (msg.eventType == 'file') {
+    file = msg.data;
+    console.log('file', file)
+  }
+});
+
+remoteConnection = new RTCPeerConnection();
+console.log('Created remote peer connection object remoteConnection');
+
+remoteConnection.addEventListener('icecandidate', async event => {
+  console.log('Remote ICE candidate: ', event.candidate);
+  socket.emit('data receive', {
+    eventType: 'icecandidate',
+    data: event.candidate
+  });
+});
+remoteConnection.addEventListener('datachannel', receiveChannelCallback);
+
+// sendFileButton.addEventListener('click', () => createConnection());
 fileInput.addEventListener('change', handleFileInputChange, false);
 abortButton.addEventListener('click', () => {
   if (fileReader && fileReader.readyState === 1) {
@@ -90,6 +133,7 @@ async function createConnection() {
 function sendData() {
   const file = fileInput.files[0];
   console.log(`File is ${[file.name, file.size, file.type, file.lastModified].join(' ')}`);
+  
 
   // Handle 0 size files.
   statusMessage.textContent = '';
@@ -128,24 +172,24 @@ function sendData() {
 
 function closeDataChannels() {
   console.log('Closing data channels');
-  sendChannel.close();
-  console.log(`Closed data channel with label: ${sendChannel.label}`);
-  sendChannel = null;
+  // sendChannel.close();
+  // console.log(`Closed data channel with label: ${sendChannel.label}`);
+  // sendChannel = null;
   if (receiveChannel) {
     receiveChannel.close();
     console.log(`Closed data channel with label: ${receiveChannel.label}`);
     receiveChannel = null;
   }
-  localConnection.close();
+  // localConnection.close();
   remoteConnection.close();
-  localConnection = null;
+  // localConnection = null;
   remoteConnection = null;
   console.log('Closed peer connections');
 
   // re-enable the file select
   fileInput.disabled = false;
   abortButton.disabled = true;
-  sendFileButton.disabled = false;
+  // sendFileButton.disabled = false;
 }
 
 async function gotLocalDescription(desc) {
@@ -163,7 +207,10 @@ async function gotLocalDescription(desc) {
 async function gotRemoteDescription(desc) {
   await remoteConnection.setLocalDescription(desc);
   console.log(`Answer from remoteConnection\n ${desc.sdp}`);
-  await localConnection.setRemoteDescription(desc);
+  socket.emit('data receive', {
+    eventType: 'description',
+    data: desc
+  });
 }
 
 function receiveChannelCallback(event) {
@@ -192,7 +239,7 @@ function onReceiveMessageCallback(event) {
 
   // we are assuming that our signaling protocol told
   // about the expected file size (and name, hash, etc).
-  const file = fileInput.files[0];
+  // const file = fileInput.files[0];
   if (receivedSize === file.size) {
     const received = new Blob(receiveBuffer);
     receiveBuffer = [];
@@ -219,7 +266,7 @@ function onReceiveMessageCallback(event) {
 
 function onSendChannelStateChange() {
   if (sendChannel) {
-    const {readyState} = sendChannel;
+    const { readyState } = sendChannel;
     console.log(`Send channel state is: ${readyState}`);
     if (readyState === 'open') {
       sendData();
