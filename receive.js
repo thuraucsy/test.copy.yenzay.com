@@ -58,6 +58,7 @@ socket.on('data message', async (msg) => {
 
   if (msg.eventType == 'file') {
     file = msg.data;
+    receiveProgress.max = file.size;
     console.log('file', file)
   }
 });
