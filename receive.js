@@ -42,6 +42,21 @@ const socket = io('http://192.168.1.48:3001', {
 
 socket.on('data message', async (msg) => {
   console.log(msg)
+
+  if (!remoteConnection) {
+    remoteConnection = new RTCPeerConnection();
+    console.log('Created remote peer connection object remoteConnection');
+
+    remoteConnection.addEventListener('icecandidate', async event => {
+      console.log('Remote ICE candidate: ', event.candidate);
+      socket.emit('data receive', {
+        eventType: 'icecandidate',
+        data: event.candidate
+      });
+    });
+    remoteConnection.addEventListener('datachannel', receiveChannelCallback);
+  }
+  
   if (msg.eventType == 'icecandidate') {
     await remoteConnection.addIceCandidate(msg.data);
   }
@@ -62,18 +77,6 @@ socket.on('data message', async (msg) => {
     console.log('file', file)
   }
 });
-
-remoteConnection = new RTCPeerConnection();
-console.log('Created remote peer connection object remoteConnection');
-
-remoteConnection.addEventListener('icecandidate', async event => {
-  console.log('Remote ICE candidate: ', event.candidate);
-  socket.emit('data receive', {
-    eventType: 'icecandidate',
-    data: event.candidate
-  });
-});
-remoteConnection.addEventListener('datachannel', receiveChannelCallback);
 
 // sendFileButton.addEventListener('click', () => createConnection());
 fileInput.addEventListener('change', handleFileInputChange, false);
@@ -134,7 +137,7 @@ async function createConnection() {
 function sendData() {
   const file = fileInput.files[0];
   console.log(`File is ${[file.name, file.size, file.type, file.lastModified].join(' ')}`);
-  
+
 
   // Handle 0 size files.
   statusMessage.textContent = '';
