@@ -70,6 +70,9 @@ async function handleFileInputChange() {
 }
 
 async function createConnection() {
+  if (localConnection) {
+    closeDataChannels();
+  }
   console.log('send')
   // socket.emit('data message', {
   //   eventType: 'icecandidate',
@@ -196,9 +199,9 @@ function closeDataChannels() {
     receiveChannel = null;
   }
   localConnection.close();
-  remoteConnection.close();
+  // remoteConnection.close();
   localConnection = null;
-  remoteConnection = null;
+  // remoteConnection = null;
   console.log('Closed peer connections');
 
   // re-enable the file select
