@@ -151,7 +151,7 @@ function sendData() {
 
 
     const send = () => {
-      while (e.target.result.byteLength) {
+      while (e.target.result && e.target.result.byteLength) {
         if (sendChannel.bufferedAmount > sendChannel.bufferedAmountLowThreshold) {
           sendChannel.onbufferedamountlow = () => {
             sendChannel.onbufferedamountlow = null;

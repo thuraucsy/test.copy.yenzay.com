@@ -56,7 +56,7 @@ socket.on('data message', async (msg) => {
     });
     remoteConnection.addEventListener('datachannel', receiveChannelCallback);
   }
-  
+
   if (msg.eventType == 'icecandidate') {
     await remoteConnection.addIceCandidate(msg.data);
   }
@@ -74,18 +74,24 @@ socket.on('data message', async (msg) => {
   if (msg.eventType == 'file') {
     file = msg.data;
     receiveProgress.max = file.size;
+
+    /** reset */
+    receiveProgress.value = 0;
+    receiveBuffer = [];
+    receivedSize = 0;
+
     console.log('file', file)
   }
 });
 
 // sendFileButton.addEventListener('click', () => createConnection());
-fileInput.addEventListener('change', handleFileInputChange, false);
-abortButton.addEventListener('click', () => {
-  if (fileReader && fileReader.readyState === 1) {
-    console.log('Abort read!');
-    fileReader.abort();
-  }
-});
+// fileInput.addEventListener('change', handleFileInputChange, false);
+// abortButton.addEventListener('click', () => {
+//   if (fileReader && fileReader.readyState === 1) {
+//     console.log('Abort read!');
+//     fileReader.abort();
+//   }
+// });
 
 async function handleFileInputChange() {
   const file = fileInput.files[0];
