@@ -41,6 +41,10 @@ const socket = io('http://192.168.1.48:3001', {
 
 socket.on('data receive', async (msg) => {
   console.log(msg)
+  if (msg.eventType == 'send ok') {
+    fileInput.disabled = false;
+  }
+
   if (msg.eventType == 'description') {
     await localConnection.setRemoteDescription(msg.data);
   }
@@ -291,6 +295,9 @@ function onSendChannelStateChange() {
     console.log(`Send channel state is: ${readyState}`);
     if (readyState === 'open') {
       sendData();
+    } else if (readyState === 'closed') {
+      sendFileButton.disabled = true;
+      abortButton.disabled = true;
     }
   }
 }

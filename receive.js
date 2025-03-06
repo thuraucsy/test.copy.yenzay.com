@@ -40,6 +40,10 @@ const socket = io('http://192.168.1.48:3001', {
   retries: 3,
 });
 
+socket.emit('data receive', {
+  eventType: 'send ok'
+});
+
 socket.on('data message', async (msg) => {
   console.log(msg)
 
@@ -197,8 +201,8 @@ function closeDataChannels() {
   console.log('Closed peer connections');
 
   // re-enable the file select
-  fileInput.disabled = false;
-  abortButton.disabled = true;
+  // fileInput.disabled = false;
+  // abortButton.disabled = true;
   // sendFileButton.disabled = false;
 }
 
@@ -250,7 +254,7 @@ function onReceiveMessageCallback(event) {
   // we are assuming that our signaling protocol told
   // about the expected file size (and name, hash, etc).
   // const file = fileInput.files[0];
-  if (receivedSize === file.size) {
+  if (receivedSize >= file.size) {
     const received = new Blob(receiveBuffer);
     receiveBuffer = [];
 
