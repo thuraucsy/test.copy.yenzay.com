@@ -32,51 +32,48 @@ let timestampStart;
 let statsInterval = null;
 let bitrateMax = 0;
 
-const socket = io('http://192.168.1.48:3001', {
-  auth: {
-    serverOffset: 0
-  },
-  ackTimeout: 10000,
-  retries: 3,
-});
+let channelReceive;
+let channelSend;
 
-socket.emit('data receive', {
-  eventType: 'send ok'
-});
+(async function () {
+  const ably = new Ably.Realtime('CtqryA.rU06vQ:-JwWn3k0hYHnVF-5oIbnLfh5btrF2drji3TT_ZDhvGI');
+  await ably.connection.once('connected');
+  console.log('Connected to Ably!');
 
-socket.on('data message', async (msg) => {
-  console.log(msg)
+  channelReceive = ably.channels.get('channel_receive');
+  channelSend = ably.channels.get('channel_send');
 
-  if (!remoteConnection) {
-    remoteConnection = new RTCPeerConnection();
-    console.log('Created remote peer connection object remoteConnection');
+  await channelReceive.publish('send_ok', 'send ok from receive!');
 
-    remoteConnection.addEventListener('icecandidate', async event => {
-      console.log('Remote ICE candidate: ', event.candidate);
-      socket.emit('data receive', {
-        eventType: 'icecandidate',
-        data: event.candidate
+  await channelSend.subscribe('icecandidate', async ({ data }) => {
+    await remoteConnection.addIceCandidate(data.data);
+  });
+  await channelSend.subscribe('description', async ({ data }) => {
+    console.log('description', data.data)
+    if (!remoteConnection) {
+      remoteConnection = new RTCPeerConnection();
+      console.log('Created remote peer connection object remoteConnection');
+
+      remoteConnection.addEventListener('icecandidate', async event => {
+        console.log('Remote ICE candidate: ', event.candidate);
+        channelReceive.publish('icecandidate', {
+          data: event.candidate
+        });
       });
-    });
-    remoteConnection.addEventListener('datachannel', receiveChannelCallback);
-  }
+      remoteConnection.addEventListener('datachannel', receiveChannelCallback);
+    }
 
-  if (msg.eventType == 'icecandidate') {
-    await remoteConnection.addIceCandidate(msg.data);
-  }
-
-  if (msg.eventType == 'description') {
-    await remoteConnection.setRemoteDescription(msg.data);
+    await remoteConnection.setRemoteDescription(data.data);
     try {
       const answer = await remoteConnection.createAnswer();
       await gotRemoteDescription(answer);
     } catch (e) {
       console.log('Failed to create session description: ', e);
     }
-  }
-
-  if (msg.eventType == 'file') {
-    file = msg.data;
+  });
+  await channelSend.subscribe('file', async ({ data }) => {
+    file = data.data;
+    console.log('file', file)
     receiveProgress.max = file.size;
 
     /** reset */
@@ -85,8 +82,11 @@ socket.on('data message', async (msg) => {
     receivedSize = 0;
 
     console.log('file', file)
-  }
-});
+  });
+})();
+
+
+
 
 // sendFileButton.addEventListener('click', () => createConnection());
 // fileInput.addEventListener('change', handleFileInputChange, false);
@@ -221,8 +221,7 @@ async function gotLocalDescription(desc) {
 async function gotRemoteDescription(desc) {
   await remoteConnection.setLocalDescription(desc);
   console.log(`Answer from remoteConnection\n ${desc.sdp}`);
-  socket.emit('data receive', {
-    eventType: 'description',
+  channelReceive.publish('description', {
     data: desc
   });
 }
@@ -246,7 +245,7 @@ function receiveChannelCallback(event) {
 }
 
 function onReceiveMessageCallback(event) {
-  console.log(`Received Message ${event.data.byteLength}`);
+  console.log(`Received Message ${event.data.byteLength} ${receivedSize}`);
   receiveBuffer.push(event.data);
   receivedSize += event.data.byteLength;
   receiveProgress.value = receivedSize;
@@ -254,7 +253,7 @@ function onReceiveMessageCallback(event) {
   // we are assuming that our signaling protocol told
   // about the expected file size (and name, hash, etc).
   // const file = fileInput.files[0];
-  if (receivedSize >= file.size) {
+  if (file && receivedSize === file.size) {
     const received = new Blob(receiveBuffer);
     receiveBuffer = [];
 

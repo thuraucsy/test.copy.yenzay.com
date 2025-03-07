@@ -31,29 +31,30 @@ let timestampStart;
 let statsInterval = null;
 let bitrateMax = 0;
 
-const socket = io('http://192.168.1.48:3001', {
-  auth: {
-    serverOffset: 0
-  },
-  ackTimeout: 10000,
-  retries: 3,
-});
+let channelReceive;
+let channelSend;
 
-socket.on('data receive', async (msg) => {
-  console.log(msg)
-  if (msg.eventType == 'send ok') {
+(async function () {
+  const ably = new Ably.Realtime('CtqryA.rU06vQ:-JwWn3k0hYHnVF-5oIbnLfh5btrF2drji3TT_ZDhvGI');
+  await ably.connection.once('connected');
+  console.log('Connected to Ably!');
+
+  channelReceive = ably.channels.get('channel_receive');
+  channelSend = ably.channels.get('channel_send');
+
+  await channelReceive.subscribe('send_ok', async ({ data }) => {
+    console.log('send ok', data.data)
     fileInput.disabled = false;
-  }
+  });
 
-  if (msg.eventType == 'description') {
-    await localConnection.setRemoteDescription(msg.data);
-  }
+  await channelReceive.subscribe('icecandidate', async ({ data }) => {
+    await localConnection.addIceCandidate(data.data);
+  });
 
-  if (msg.eventType == 'icecandidate') {
-    await localConnection.addIceCandidate(msg.data);
-  }
-
-});
+  await channelReceive.subscribe('description', async ({ data }) => {
+    await localConnection.setRemoteDescription(data.data);
+  });
+})();
 
 sendFileButton.addEventListener('click', () => createConnection());
 fileInput.addEventListener('change', handleFileInputChange, false);
@@ -78,11 +79,6 @@ async function createConnection() {
     closeDataChannels();
   }
   console.log('send')
-  // socket.emit('data message', {
-  //   eventType: 'icecandidate',
-  //   data: 'data'
-  // });
-  // return;
   abortButton.disabled = false;
   // sendFileButton.disabled = true;
   localConnection = new RTCPeerConnection();
@@ -98,21 +94,11 @@ async function createConnection() {
 
   localConnection.addEventListener('icecandidate', async event => {
     console.log('Local ICE candidate: ', event.candidate);
-    socket.emit('data message', {
-      eventType: 'icecandidate',
+
+    channelSend.publish('icecandidate', {
       data: event.candidate
     });
-    //   await remoteConnection.addIceCandidate(event.candidate);
   });
-
-  // remoteConnection = new RTCPeerConnection();
-  // console.log('Created remote peer connection object remoteConnection');
-
-  // remoteConnection.addEventListener('icecandidate', async event => {
-  //   console.log('Remote ICE candidate: ', event.candidate);
-  //   await localConnection.addIceCandidate(event.candidate);
-  // });
-  // remoteConnection.addEventListener('datachannel', receiveChannelCallback);
 
   try {
     const offer = await localConnection.createOffer();
@@ -120,20 +106,23 @@ async function createConnection() {
   } catch (e) {
     console.log('Failed to create session description: ', e);
   }
-
-  // fileInput.disabled = true;
 }
 
-function sendData() {
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function sendData() {
   const file = fileInput.files[0];
   console.log(`File is ${[file.name, file.size, file.type, file.lastModified].join(' ')}`);
-  socket.emit('data message', {
-    eventType: 'file',
+  channelSend.publish('file', {
     data: {
       name: file.name,
       size: file.size,
     }
   });
+
+  await sleep(1000);
 
   // Handle 0 size files.
   statusMessage.textContent = '';
@@ -154,7 +143,7 @@ function sendData() {
   fileReader.addEventListener('error', error => console.error('Error reading file:', error));
   fileReader.addEventListener('abort', event => console.log('File reading aborted:', event));
   fileReader.addEventListener('load', e => {
-    console.log('FileRead.onload ', e);
+    // console.log('FileRead.onload ', e);
 
 
     const send = () => {
@@ -185,7 +174,7 @@ function sendData() {
 
   });
   const readSlice = o => {
-    console.log('readSlice ', o);
+    // console.log('readSlice ', o);
     const slice = file.slice(offset, o + chunkSize);
     fileReader.readAsArrayBuffer(slice);
   };
@@ -219,16 +208,9 @@ async function gotLocalDescription(desc) {
   await localConnection.setLocalDescription(desc);
   console.log(`Offer from localConnection\n ${desc.sdp}`);
 
-  socket.emit('data message', {
-    eventType: 'description',
+  channelSend.publish('description', {
     data: desc
   });
-  // try {
-  //   const answer = await remoteConnection.createAnswer();
-  //   await gotRemoteDescription(answer);
-  // } catch (e) {
-  //   console.log('Failed to create session description: ', e);
-  // }
 }
 
 async function gotRemoteDescription(desc) {
