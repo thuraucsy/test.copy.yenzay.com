@@ -81,7 +81,26 @@ async function createConnection() {
   console.log('send')
   abortButton.disabled = false;
   // sendFileButton.disabled = true;
-  localConnection = new RTCPeerConnection();
+
+  const iceConfiguration = {}
+  iceConfiguration.iceServers = [
+    {
+      urls: 'stun:stun.l.google.com:19302'
+    },
+    {
+      urls: 'stun:stun1.l.google.com:19302'
+    },
+    {
+      urls: 'stun:stun2.l.google.com:19302'
+    },
+    {
+      urls: 'stun:stun3.l.google.com:19302'
+    },
+    {
+      urls: 'stun:stun4.l.google.com:19302'
+    }
+  ];
+  localConnection = new RTCPeerConnection(iceConfiguration);
   console.log('Created local peer connection object localConnection');
 
   sendChannel = localConnection.createDataChannel('sendDataChannel');

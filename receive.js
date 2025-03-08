@@ -125,7 +125,25 @@ async function createConnection() {
     await remoteConnection.addIceCandidate(event.candidate);
   });
 
-  remoteConnection = new RTCPeerConnection();
+  const iceConfiguration = {}
+  iceConfiguration.iceServers = [
+    {
+      urls: 'stun:stun.l.google.com:19302'
+    },
+    {
+      urls: 'stun:stun1.l.google.com:19302'
+    },
+    {
+      urls: 'stun:stun2.l.google.com:19302'
+    },
+    {
+      urls: 'stun:stun3.l.google.com:19302'
+    },
+    {
+      urls: 'stun:stun4.l.google.com:19302'
+    }
+  ];
+  remoteConnection = new RTCPeerConnection(iceConfiguration);
   console.log('Created remote peer connection object remoteConnection');
 
   remoteConnection.addEventListener('icecandidate', async event => {
